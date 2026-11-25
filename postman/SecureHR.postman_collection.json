@@ -1,0 +1,637 @@
+{
+  "info": {
+    "name": "SecureHR · Laboratorio DevSecOps",
+    "description": "Colección de pruebas de la API **SecureHR** para el taller «Tu aplicación funciona… ¿pero es segura?».\n\n## Cómo se usa\n1. Levanta la API: `dotnet run --project src/SecureHR.Api`\n2. Comprueba la variable `baseUrl` de la colección (por defecto `http://localhost:5080`).\n3. Empieza por **00 · Salud** y sigue en orden.\n\nEn Codespaces, la URL es distinta: copia el puerto 5080 reenviado (pestaña **Ports**) en la variable `baseUrl`.\n\n## Identidades\nLa autenticación del laboratorio es simulada con cabeceras:\n\n| Cabeceras | Quién es |\n|---|---|\n| `X-Demo-User: john.doe` · `Role: Employee` · `Department: Engineering` · `EmployeeId: 7` | Desarrollador junior |\n| `X-Demo-User: carlos.jimenez` · `Role: Manager` · `Department: Engineering` · `EmployeeId: 2` | Jefe de Engineering |\n| `X-Demo-User: payroll.svc` · `Role: Payroll` | Nómina: ve toda la plantilla |\n| `X-Demo-User: admin` · `Role: Admin` | Administración |\n| *(sin cabeceras)* | Anónimo → 401 |\n\n## Qué mirar\nEl código de estado es la respuesta del laboratorio: **200** donde debería haber **403** es el hallazgo. Después de `scripts/apply-fix.ps1 -Lab 2`, vuelve a ejecutar **1.2** y **1.4**.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5080",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 · Salud y contexto",
+      "description": "Comprobar que la API responde y que la autenticación de demostración funciona (cabeceras X-Demo-*).",
+      "item": [
+        {
+          "name": "0.1 · health → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Sin cabeceras. Si esto falla, la API no está levantada:\n`dotnet run --project src/SecureHR.Api`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"La API responde\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Se identifica como securehr-api\", () => {",
+                  "    pm.expect(pm.response.json().service).to.eql(\"securehr-api\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0.2 · whoami como John → 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "john.doe",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "Employee",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Department",
+                "value": "Engineering",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-EmployeeId",
+                "value": "7",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/whoami",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "whoami"
+              ]
+            },
+            "description": "Devuelve lo que el servidor cree que eres, leído de las cabeceras."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"El rol viaja en el token\", () => {",
+                  "    pm.expect(pm.response.json().role).to.eql(\"Employee\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0.3 · whoami como Payroll → 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "payroll.svc",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "Payroll",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Department",
+                "value": "Finance",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-EmployeeId",
+                "value": "0",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/whoami",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "whoami"
+              ]
+            },
+            "description": "Mismo endpoint, otra identidad. Solo cambian las cabeceras."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0.4 · sin cabeceras → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/employees/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "employees",
+                "1"
+              ]
+            },
+            "description": "Sin identidad no hay acceso. Autenticación funcionando."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401 sin credenciales\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 · Empleados · el BOLA (Lab 2)",
+      "description": "El corazón del laboratorio: autenticado no es autorizado.\n\nEn la aplicación sin arreglar, la petición **1.2** devuelve **200** con el salario y la cédula de otra persona. Después de aplicar `apply-fix -Lab 2`, la misma petición devuelve **403**.",
+      "item": [
+        {
+          "name": "1.1 · John pide SU ficha (7) → 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "john.doe",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "Employee",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Department",
+                "value": "Engineering",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-EmployeeId",
+                "value": "7",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/employees/7",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "employees",
+                "7"
+              ]
+            },
+            "description": "Su propio registro. Correcto en ambos estados."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Es el empleado 7\", () => {",
+                  "    pm.expect(pm.response.json().id).to.eql(7);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.2 · John pide la ficha de María (3) → 200 ⚠️ BOLA",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "john.doe",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "Employee",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Department",
+                "value": "Engineering",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-EmployeeId",
+                "value": "7",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/employees/3",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "employees",
+                "3"
+              ]
+            },
+            "description": "John es el empleado 7, de Engineering. María es la 3, de Finance.\n\n**Nadie hackeó nada: se cambió un número en la URL.**\n\nSi responde 403, el control de acceso ya está aplicado."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde (200 o 403)\", () => {",
+                  "    pm.expect([200, 403]).to.include(pm.response.code);",
+                  "});",
+                  "if (pm.response.code === 200) {",
+                  "    const b = pm.response.json();",
+                  "    console.warn(\"BOLA: devolvió la ficha de \" + b.fullName +",
+                  "                 \" con salario \" + b.salary + \". Aplica el fix del Lab 2.\");",
+                  "} else {",
+                  "    console.log(\"Control de acceso correcto: 403.\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.3 · Payroll pide la ficha de María (3) → 200",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "payroll.svc",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "Payroll",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Department",
+                "value": "Finance",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-EmployeeId",
+                "value": "0",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/employees/3",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "employees",
+                "3"
+              ]
+            },
+            "description": "Nómina sí gestiona toda la plantilla. Este 200 es legítimo en ambos estados."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.4 · Manager de Engineering pide ficha 4 (Finance) → 403 tras el fix",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "carlos.jimenez",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "Manager",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Department",
+                "value": "Engineering",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-EmployeeId",
+                "value": "2",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/employees/4",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "employees",
+                "4"
+              ]
+            },
+            "description": "Un jefe de área ve a su equipo, no a otra área.\n\nAntes del fix: 200. Después: 403."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde (200 o 403)\", () => {",
+                  "    pm.expect([200, 403]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.5 · Ficha inexistente (999) → 404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "john.doe",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "Employee",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Department",
+                "value": "Engineering",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-EmployeeId",
+                "value": "7",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/employees/999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "employees",
+                "999"
+              ]
+            },
+            "description": "El error correcto: no revela si el registro existe para otro usuario."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 · Reportes · inyección SQL",
+      "description": "El endpoint de reportes arma la consulta concatenando la entrada.\n\n`Finance` devuelve 3 filas. Una tautología devuelve **toda la tabla**.\n\nLa respuesta incluye la sentencia generada (`sql`) para que el riesgo sea visible en pantalla.",
+      "item": [
+        {
+          "name": "2.1 · Reporte normal (Finance) → 3 filas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "payroll.svc",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "Payroll",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Department",
+                "value": "Finance",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-EmployeeId",
+                "value": "0",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reports/employees-by-department?department=Finance",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reports",
+                "employees-by-department"
+              ],
+              "query": [
+                {
+                  "key": "department",
+                  "value": "Finance"
+                }
+              ]
+            },
+            "description": "Consulta legítima de Nómina."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Tres empleados en Finance\", () => {",
+                  "    pm.expect(pm.response.json().rowsReturned).to.eql(3);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.2 · Reporte con inyección → 12 filas ⚠️",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "payroll.svc",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "Payroll",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Department",
+                "value": "Finance",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-EmployeeId",
+                "value": "0",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reports/employees-by-department?department=Finance' OR '1'='1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reports",
+                "employees-by-department"
+              ],
+              "query": [
+                {
+                  "key": "department",
+                  "value": "Finance' OR '1'='1"
+                }
+              ]
+            },
+            "description": "El valor enviado es `Finance' OR '1'='1`.\n\nLa cláusula WHERE se rompe y el motor devuelve los 12 empleados, incluidos los de otras áreas. La respuesta muestra la sentencia generada."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const b = pm.response.json();",
+                  "pm.test(\"El servidor devuelve la consulta generada\", () => {",
+                  "    pm.expect(b.sql).to.include(\"department\");",
+                  "});",
+                  "if (b.rowsReturned >= 12) {",
+                  "    console.warn(\"Inyección SQL: la tautología devolvió \" + b.rowsReturned +",
+                  "                 \" filas. Mira la sentencia en la respuesta.\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.3 · Empleado intenta el reporte → 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "john.doe",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "Employee",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-Department",
+                "value": "Engineering",
+                "type": "text"
+              },
+              {
+                "key": "X-Demo-EmployeeId",
+                "value": "7",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reports/employees-by-department?department=Finance",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reports",
+                "employees-by-department"
+              ],
+              "query": [
+                {
+                  "key": "department",
+                  "value": "Finance"
+                }
+              ]
+            },
+            "description": "El rol está bien aplicado: solo Nómina y Admin entran.\n\nAutorización por rol sí, autorización por objeto no. Esa es la lección del Lab 2."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -82,6 +82,7 @@ securehr-devsecops-lab/
 ├── .github/workflows/
 │   ├── ci-start.yml           El pipeline "de antes"
 │   └── ci-devsecops.yml       El pipeline "de después"
+├── postman/                    Colección para probar la API sin curl
 ├── .gitleaks.toml             Reglas de detección de secretos
 ├── .semgrep/securehr.yml      3 reglas propias de SAST
 ├── labs/                      Guía paso a paso de cada laboratorio
@@ -117,6 +118,22 @@ securehr-devsecops-lab/
 
 La #2 es la más importante del taller: **ningún escáner la encuentra**. Está ahí
 para demostrar que las herramientas no reemplazan el criterio.
+
+---
+
+## Probar la API sin escribir curl
+
+En [`postman/`](postman/) está la colección con las doce peticiones del taller
+(BOLA, inyección, roles y estados de error), cada una con sus pruebas:
+
+**Import → Link** y pega:
+
+```
+https://raw.githubusercontent.com/profedavidluna/taller_devsecops/main/postman/SecureHR.postman_collection.json
+```
+
+Solo hay que levantar la API y ajustar `baseUrl` (en Codespaces, la URL del
+puerto 5080 reenviado). Detalle en [`postman/README.md`](postman/README.md).
 
 ---
 
