@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.DataProtection;
 using SecureHR.Api.Security;
 using SecureHR.Api.Services;
 
@@ -17,6 +18,18 @@ builder.Services
         HeaderAuthenticationHandler.SchemeName, _ => { });
 
 builder.Services.AddAuthorization();
+
+// Data Protection guarda sus claves en el perfil del usuario
+// (%LOCALAPPDATA%\ASP.NET\DataProtection-Keys). En portátiles con el perfil
+// redirigido —o sin permiso de escritura ahí— la aplicación arranca con un
+// error en rojo que no aporta nada al taller. Las claves van a una carpeta
+// temporal: esta API no usa cookies ni antiforgery, así que no necesitamos que
+// sobrevivan a un reinicio.
+var dataProtectionKeys = Path.Combine(Path.GetTempPath(), "securehr-dataprotection");
+Directory.CreateDirectory(dataProtectionKeys);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeys))
+    .SetApplicationName("SecureHR");
 
 builder.Services.AddCors(options =>
 {
