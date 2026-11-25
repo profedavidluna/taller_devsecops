@@ -1,0 +1,15 @@
+# Normaliza los finales de línea a LF en el repositorio y en el checkout.
+#
+# Motivo: los scripts (`scripts/*.sh`, `.devcontainer/post-create.sh`) se ejecutan
+# en Linux (Codespaces / Dev Container). Si git los entrega con CRLF, bash falla
+# con "command not found: \r" y el taller empieza con un error difícil de leer.
+* text=auto eol=lf
+
+# Binarios: sin conversión.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.pptx binary
+*.docx binary
+*.pdf  binary
