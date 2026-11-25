@@ -1,0 +1,76 @@
+# Infraestructura de SecureHR — versión corregida (resultado del Laboratorio 5).
+#
+# Principio: el pod no necesita nada de lo que le quitamos.
+# Si un día necesita un permiso, se pide explícitamente y se revisa en el PR.
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: securehr-db
+  namespace: default
+type: Opaque
+stringData:
+  # En la práctica: External Secrets / Sealed Secrets / Vault.
+  # Nunca un ConfigMap, nunca en texto plano en el repositorio.
+  ConnectionStrings__Database: "REEMPLAZAR_DESDE_EL_GESTOR_DE_SECRETOS"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: securehr-api
+  namespace: default
+  labels:
+    app: securehr-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: securehr-api
+  template:
+    metadata:
+      labels:
+        app: securehr-api
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          # Tag inmutable: la misma referencia siempre produce la misma imagen.
+          image: registry.securehr.internal/securehr-api:1.4.2
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          envFrom:
+            - secretRef:
+                name: securehr-db
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20

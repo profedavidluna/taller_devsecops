@@ -1,0 +1,11 @@
+bin/
+obj/
+tests/
+solution/
+labs/
+docs/
+*.md
+Dockerfile
+Dockerfile.secure
+docker-compose.yml
+.github/

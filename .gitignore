@@ -1,0 +1,23 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+## Logs y temporales
+*.log
+run.*.log
+restore.log
+b1.log
+b2.log
+t1.log
+r2.log
+r3.log
+
+## Herramientas
+trivy-cache/
+
+## Sistema
+.DS_Store
+Thumbs.db

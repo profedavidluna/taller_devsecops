@@ -1,0 +1,29 @@
+# Configuración de Gitleaks para el laboratorio SecureHR.
+#
+# Nota pedagógica: usamos reglas EXPLÍCITAS (no solo entropía) para que el
+# resultado sea determinista y siempre muestre los mismos dos hallazgos.
+# En un proyecto real se combinan las reglas por defecto + reglas propias.
+
+title = "SecureHR Lab - detección de secretos"
+
+[[rules]]
+id = "securehr-connection-string"
+description = "Cadena de conexión con contraseña embebida en el repositorio"
+regex = '''(?i)(Host|Server)\s*=\s*[^;\s]+;[^\r\n]*Password\s*=\s*[^;\s"]+'''
+keywords = ["password"]
+tags = ["secret", "database"]
+
+[[rules]]
+id = "securehr-payroll-api-key"
+description = "API key del servicio de nómina en texto plano"
+regex = '''(?i)payroll[_-]?api[_-]?key["']?\s*[:=]\s*["'][^"'\r\n]{6,}["']'''
+keywords = ["payroll", "apikey"]
+tags = ["secret", "api-key"]
+
+[allowlist]
+description = "Evitamos que la propia configuración se reporte como hallazgo"
+paths = [
+  '''\.gitleaks\.toml''',
+  '''labs/''',
+  '''solution/'''
+]

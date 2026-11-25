@@ -1,0 +1,61 @@
+# Reglas propias de Semgrep para el laboratorio SecureHR.
+#
+# Tres reglas, tres conversaciones distintas:
+#   1. SQL armado con interpolación  -> inyección (lo encuentra el SAST)
+#   2. CORS abierto a cualquier origen -> configuración insegura
+#   3. Detalle de excepción devuelto al cliente -> fuga de información
+#
+# Lo que NO está aquí: la falta de autorización del endpoint.
+# Un SAST no adivina reglas de negocio. Ese hueco lo cubre el criterio humano.
+
+rules:
+  - id: securehr-sql-string-interpolation
+    languages: [generic]
+    paths:
+      include:
+        - "*.cs"
+    severity: ERROR
+    message: >-
+      Consulta SQL construida con interpolación de cadenas. Un valor controlado
+      por el usuario puede alterar la sentencia (inyección SQL). Usa parámetros
+      o un ORM en lugar de concatenar.
+    metadata:
+      category: security
+      confidence: HIGH
+      cwe: ["CWE-89: Improper Neutralization of Special Elements used in an SQL Command"]
+      owasp: ["A03:2021 - Injection"]
+      impact: HIGH
+    pattern-regex: '(?i)=\s*\$"[^"\r\n]*\b(select|insert|update|delete)\b[^"\r\n]*\{'
+
+  - id: securehr-cors-allow-any-origin
+    languages: [csharp]
+    severity: WARNING
+    message: >-
+      CORS permite cualquier origen. Cualquier sitio web puede invocar la API
+      desde el navegador de un empleado autenticado.
+    metadata:
+      category: security
+      confidence: HIGH
+      cwe: ["CWE-942: Permissive Cross-domain Policy with Untrusted Domains"]
+      owasp: ["A05:2021 - Security Misconfiguration"]
+      impact: MEDIUM
+    patterns:
+      - pattern: $POLICY.AllowAnyOrigin()
+
+  - id: securehr-exception-details-leaked
+    languages: [generic]
+    paths:
+      include:
+        - "*.cs"
+    severity: WARNING
+    message: >-
+      Se devuelve el detalle completo de la excepción al cliente. Expone rutas,
+      nombres de tablas y versiones de librerías. Registra el detalle en el log
+      y devuelve un mensaje genérico.
+    metadata:
+      category: security
+      confidence: HIGH
+      cwe: ["CWE-209: Generation of Error Message Containing Sensitive Information"]
+      owasp: ["A04:2021 - Insecure Design"]
+      impact: LOW
+    pattern-regex: '(?i)return\s+StatusCode\(\s*500\s*,\s*ex\.ToString\(\)\s*\)'

@@ -1,0 +1,13 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: securehr:latest
+    container_name: securehr-api
+    ports:
+      - "5080:8080"
+    environment:
+      # Ojo: en el Lab 5 discutimos por qué esto NO debería estar aquí.
+      ASPNETCORE_ENVIRONMENT: Development
+    # Sin límites de recursos, sin healthcheck, corriendo como root.

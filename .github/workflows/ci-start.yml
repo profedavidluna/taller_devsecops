@@ -1,0 +1,38 @@
+name: ci
+
+# Pipeline ANTES — el orgullo del equipo SecureHR.
+# Recorre todo el camino hasta producción y no hace una sola pregunta
+# de seguridad. Verde en cada push desde hace ocho meses.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore SecureHR.sln
+
+      - name: Build
+        run: dotnet build SecureHR.sln --no-restore -c Release
+
+      - name: Unit tests
+        run: dotnet test SecureHR.sln --no-build -c Release --verbosity minimal
+
+      - name: Docker build
+        run: docker build -t securehr:${{ github.sha }} .
+
+      # Deploy — aquí abajo es donde duele.
+      - name: Deploy (simulado)
+        run: echo "Desplegando securehr:${{ github.sha }} a producción ✅"

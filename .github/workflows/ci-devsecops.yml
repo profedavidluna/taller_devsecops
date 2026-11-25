@@ -1,0 +1,161 @@
+name: ci-devsecops
+
+# Pipeline DESPUÉS — el objetivo del taller.
+#
+# La regla del juego: los mismos comandos que corres en tu máquina son los que
+# corre el pipeline. Si no puedes reproducir un hallazgo localmente, no es un
+# control de seguridad: es una caja negra.
+#
+# Política de severidad (se discute en el bloque de Security Gates):
+#   CRITICAL  -> bloquea
+#   HIGH      -> bloquea (con proceso de excepción documentado)
+#   MEDIUM    -> reporta, no bloquea
+#   LOW       -> se registra para seguimiento
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: "8.0.x"
+  # Si quieres solo bloquear lo grave de verdad, cambia a "CRITICAL".
+  GATE_SEVERITY: "HIGH,CRITICAL"
+
+jobs:
+  # ---------------------------------------------------------------- 1. secretos
+  secrets:
+    name: "1 · Secret scanning"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+            detect -s /repo -c /repo/.gitleaks.toml --no-git --redact --exit-code 1
+
+  # ------------------------------------------------------------ 2. build + test
+  build:
+    name: "2 · Build + unit tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore SecureHR.sln
+
+      - name: Build
+        run: dotnet build SecureHR.sln --no-restore -c Release
+
+      - name: Tests
+        run: dotnet test SecureHR.sln --no-build -c Release --verbosity minimal
+
+  # ------------------------------------------------------------------- 3. SAST
+  sast:
+    name: "3 · SAST (Semgrep)"
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - run: dotnet restore SecureHR.sln
+
+      - name: Semgrep (reglas propias + OWASP)
+        run: |
+          docker run --rm -v "$PWD:/src" semgrep/semgrep:latest \
+            semgrep scan --config=/src/.semgrep/securehr.yml --error --quiet /src
+
+  # -------------------------------------------------------------------- 4. SCA
+  sca:
+    name: "4 · SCA (Trivy fs)"
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Restaurar para materializar packages.lock.json
+        run: dotnet restore SecureHR.sln
+
+      - name: Trivy filesystem (dependencias)
+        run: |
+          docker run --rm -v "$PWD:/src" aquasec/trivy:latest \
+            fs --scanners vuln --severity "$GATE_SEVERITY" \
+               --exit-code 1 --no-progress --skip-dirs /src/tests /src
+
+  # -------------------------------------------------------- 5. contenedor
+  container:
+    name: "5 · Container scan"
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker build
+        run: docker build -t securehr:${{ github.sha }} .
+
+      - name: Trivy image (OS + librerías de la imagen)
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --severity "$GATE_SEVERITY" --exit-code 1 --no-progress \
+            securehr:${{ github.sha }}
+
+  # -------------------------------------------------------------------- 6. IaC
+  iac:
+    name: "6 · IaC scan"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy config (Kubernetes + Terraform)
+        run: |
+          docker run --rm -v "$PWD:/src" aquasec/trivy:latest \
+            config --severity "$GATE_SEVERITY" --exit-code 1 \
+            --no-progress /src/infra
+
+  # --------------------------------------------------------- 7. security gate
+  security-gate:
+    name: "7 · Security gate"
+    needs: [secrets, build, sast, sca, container, iac]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluar el resultado de todos los controles
+        run: |
+          echo "Control              Resultado"
+          echo "-------------------- ---------"
+          echo "Secret scanning      ${{ needs.secrets.result }}"
+          echo "Build + tests        ${{ needs.build.result }}"
+          echo "SAST                 ${{ needs.sast.result }}"
+          echo "SCA                  ${{ needs.sca.result }}"
+          echo "Container scan       ${{ needs.container.result }}"
+          echo "IaC scan             ${{ needs.iac.result }}"
+          echo
+
+          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ]; then
+            echo "SECURITY GATE: FAILED"
+            echo "El despliegue queda bloqueado. Esto es el control funcionando,"
+            echo "no el pipeline roto: el riesgo se detuvo antes de producción."
+            exit 1
+          fi
+
+          if [ "${{ contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            echo "SECURITY GATE: INCOMPLETE (algún control fue cancelado)"
+            exit 1
+          fi
+
+          echo "SECURITY GATE: PASSED — se autoriza el despliegue."

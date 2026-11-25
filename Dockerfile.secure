@@ -1,0 +1,38 @@
+# syntax=docker/dockerfile:1
+#
+# Dockerfile reforzado — resultado del Laboratorio 4.
+#
+# Diferencias que importan y se pueden medir:
+#   - Multi-stage con caché de dependencias (restore antes de copiar el código).
+#   - Solo el artefacto publicado entra a la imagen final.
+#   - Base chiseled: sin shell, sin gestor de paquetes, superficie mínima.
+#   - Usuario no root ($APP_UID, 1654) por defecto en las imágenes .NET 8.
+#   - Sin secretos: la configuración sensible entra por variables de entorno.
+#
+# Medición esperada: decenas de CVEs -> un puñado (o cero) HIGH/CRITICAL.
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# 1) Caché de dependencias: si no cambia el .csproj, NuGet no se vuelve a bajar.
+COPY src/SecureHR.Api/SecureHR.Api.csproj src/SecureHR.Api/
+# En un pipeline real: restore --locked-mode + packages.lock.json verificado,
+# para que nadie cambie una dependencia sin que quede registrado en el PR.
+RUN dotnet restore src/SecureHR.Api/SecureHR.Api.csproj
+
+# 2) Solo el código de la aplicación.
+COPY src/SecureHR.Api/ src/SecureHR.Api/
+RUN dotnet publish src/SecureHR.Api/SecureHR.Api.csproj \
+      -c Release -o /app --no-restore /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled AS final
+WORKDIR /app
+COPY --from=build /app .
+
+# Nunca root. $APP_UID viene definido en la imagen base (1654).
+USER $APP_UID
+
+ENV ASPNETCORE_HTTP_PORTS=8080
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "SecureHR.Api.dll"]

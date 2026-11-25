@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>SecureHR.Api</RootNamespace>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <UserSecretsId>securehr-api-lab</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Dependencia deliberadamente antigua para el laboratorio de SCA (Lab 3).
+      Newtonsoft.Json 12.0.1 arrastra CVE-2024-21907 (denegación de servicio, HIGH).
+      NO actualizar antes del Lab 3: es la vulnerabilidad que vamos a descubrir.
+    -->
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.1" />
+  </ItemGroup>
+
+</Project>

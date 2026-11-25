@@ -1,0 +1,60 @@
+# Infraestructura de SecureHR — deliberadamente insegura (Laboratorio 5).
+#
+# Todo lo de aquí abajo pasó una revisión de código: "es lo que hace falta para
+# que el pod arranque". Nadie preguntó qué implica.
+#
+# Hallazgos esperados al ejecutar `trivy config infra/`:
+#   - Contenedor privilegiado
+#   - Corre como root (runAsUser: 0)
+#   - Permite escalar privilegios
+#   - Sin límites de CPU/memoria
+#   - Sin probes de readiness/liveness
+#   - hostNetwork: true
+#   - Secretos en un ConfigMap en texto plano
+#   - Imagen con tag mutable (:latest)
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: securehr-config
+  namespace: default
+data:
+  # Un ConfigMap NO es un lugar para contraseñas: no está cifrado y
+  # cualquiera con permiso de lectura en el namespace lo ve completo.
+  ConnectionStrings__Database: "Host=db.securehr.internal;Port=5432;Database=securehr;Username=admin;Password=HR2026!"
+  ASPNETCORE_ENVIRONMENT: "Development"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: securehr-api
+  namespace: default
+  labels:
+    app: securehr-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: securehr-api
+  template:
+    metadata:
+      labels:
+        app: securehr-api
+    spec:
+      hostNetwork: true
+      containers:
+        - name: api
+          image: securehr:latest
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            allowPrivilegeEscalation: true
+          envFrom:
+            - configMapRef:
+                name: securehr-config
+          ports:
+            - containerPort: 8080
+          # Sin resources: el pod puede consumir todo el nodo.
+          # Sin readinessProbe: el balanceador manda tráfico a un pod que
+          # todavía no está listo.

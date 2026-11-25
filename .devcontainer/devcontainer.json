@@ -1,0 +1,30 @@
+[
+  {
+    "name": "SecureHR DevSecOps Lab",
+    "image": "mcr.microsoft.com/devcontainers/dotnet:1-8.0-bookworm",
+    "features": {
+      "ghcr.io/devcontainers/features/docker-in-docker:2": {
+        "moby": false
+      },
+      "ghcr.io/devcontainers/features/github-cli:1": {}
+    },
+    "postCreateCommand": "bash .devcontainer/post-create.sh",
+    "customizations": {
+      "vscode": {
+        "extensions": [
+          "ms-dotnettools.csharp",
+          "ms-azuretools.vscode-docker",
+          "redhat.vscode-yaml"
+        ],
+        "settings": {
+          "editor.formatOnSave": true
+        }
+      }
+    },
+    "hostRequirements": {
+      "cpus": 2,
+      "memory": "4gb",
+      "storage": "32gb"
+    }
+  }
+]
